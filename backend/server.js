@@ -6,7 +6,7 @@ const dotenv = require('dotenv');
 // Load environment variables from .env file
 dotenv.config();
 
-const userRoutes = require('./routes/userRoutes');
+const userRoutes = require('./routes/userRoutes.js');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -28,6 +28,7 @@ mongoose.connect(MONGO_URI)
 
 // --- API Routes ---
 // Use the user routes, prefixed with '/api/users'
+// Tell Express to use your imported routes for any request that starts with '/api/users'
 app.use('/api/users', userRoutes);
 
 // Basic health check route

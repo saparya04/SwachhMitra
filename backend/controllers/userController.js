@@ -1,4 +1,4 @@
-const User = require('../models/User');
+const User = require('../models/User.js');
 
 /**
  * Endpoint to save user profile data (name, role, location, etc.) to MongoDB 
@@ -60,3 +60,5 @@ exports.getUserRole = async (req, res) => {
         return res.status(500).json({ message: 'Internal server error.' });
     }
 };
+
+
