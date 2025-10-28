@@ -17,16 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 // Removed: import VolunteerDashboard from './VolunteerDashboard'; (as requested)
 
-// --- CONFIGURATION ---
-const firebaseConfig = {
-  apiKey: "AIzaSyCTL_q0pfcj0Ut0_20MnR8GThLi9kc5U-E",
-  authDomain: "th-year-e940d.firebaseapp.com",
-  projectId: "th-year-e940d",
-  storageBucket: "th-year-e940d.firebasestorage.app",
-  messagingSenderId: "1056026710715",
-  appId: "1:1056026710715:web:fbbdc5b70277c29bed8f9e",
-  measurementId: "G-2VPF0FER2N"
-};
+
 
 // --- BACKEND URL (Updated to your latest URL) ---
 const socket = io('http://192.168.0.194:5000'); // e.g. http://192.168.1.5:5000
