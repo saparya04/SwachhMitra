@@ -61,4 +61,18 @@
         }
     };
 
+    exports.updateUserSettings = async (req, res) => {
+    try {
+        const { firebaseUid, isDark } = req.body;
+        const user = await User.findOneAndUpdate(
+            { firebaseUid },
+            { $set: { isDark: isDark } },
+            { new: true }
+        );
+        res.status(200).json(user);
+    } catch (error) {
+        res.status(500).json({ message: "Error updating settings" });
+    }
+};
+
 

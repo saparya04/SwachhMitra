@@ -7,6 +7,7 @@ router.post('/register-data', userController.saveUserData);
 
 // Route to fetch the user's role from MongoDB after Firebase login
 router.get('/role/:firebaseUid', userController.getUserRole);
+router.put('/settings', userController.updateUserSettings);
 
 module.exports = router;
 
