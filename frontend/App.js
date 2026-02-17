@@ -1356,7 +1356,7 @@
 //   return <View style={{ flex: 1 }}>{renderScreen()}</View>;
 // }
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Platform, Image } from 'react-native';
 import { initializeApp } from 'firebase/app';
 import {
@@ -1370,9 +1370,15 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { Camera } from 'expo-camera';
+
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { WebView } from 'react-native-webview';
 import { Modal } from 'react-native'; // To show it as a popup
+import io from 'socket.io-client';
+const socket = io('http://192.168.0.106:5000', {
+  transports: ['websocket'], // Forces WebSocket to avoid 404 polling errors
+  autoConnect: true
+});
 
 // --- CONFIGURATION ---
 const firebaseConfig = {
@@ -1385,7 +1391,7 @@ const firebaseConfig = {
   measurementId: "G-2VPF0FER2N"
 };
 
-const BACKEND_URL = 'http://192.168.0.100:5000'; // Ensure this matches your IPv4
+const BACKEND_URL = 'http://192.168.0.106:5000'; // Ensure this matches your IPv4
 
 const app = initializeApp(firebaseConfig);
 const getPersistenceMethod = () => Platform.OS === 'web' ? browserLocalPersistence : getReactNativePersistence(AsyncStorage);
@@ -1463,7 +1469,7 @@ const Icon = ({ name, active }) => {
 };
 
 const TabBar = ({ activeTab, setActiveTab }) => {
-  const tabs = ['Home', 'Events', 'Classify', 'Rewards', 'Settings', 'Reports'];
+  const tabs = ['Home', 'Events', 'Classify', 'Rewards','Messages', 'Settings', 'Reports'];
   return (
     <View style={styles.footer}>
       {tabs.map(tab => (
@@ -1581,76 +1587,6 @@ const LoginScreen = ({ setScreen, setUserData }) => {
     </ScrollView>
   );
 };
-
-// --- VOLUNTEER DASHBOARD ---
-// --- UPDATED CLASSIFY SCREEN ---
-// const ClassifyScreen = () => {
-//   const [showLiveFeed, setShowLiveFeed] = useState(false);
-
-//   // Note: Ensure BACKEND_URL uses port 5001 for Flask (or match your app.py)
-//   const FLASK_URL = 'http://192.168.0.100:5001'; // CHANGE TO YOUR IPv4
-
-//   {showLiveFeed ? (
-//     <Image
-//       source={{ uri: `${FLASK_URL}/video_feed?time=${new Date().getTime()}` }} 
-//       style={{ width: '100%', height: '100%' }}
-//       resizeMode="contain"
-//     />
-// ) : (
-//     <Text style={{ color: '#fff' }}>Camera Preview Inactive</Text>
-// )}
-
-//   return (
-//     <ScrollView style={{ flex: 1, backgroundColor: THEME.white }}>
-//       <View style={styles.container}>
-//         <Text style={styles.title}>Waste Classification</Text>
-//         <Text style={styles.subtitle}>Dual classification model</Text>
-
-//         {/* Video Stream Container */}
-//         <View style={{
-//           width: '100%',
-//           height: 300,
-//           backgroundColor: '#000',
-//           borderRadius: 15,
-//           overflow: 'hidden',
-//           marginVertical: 20,
-//           justifyContent: 'center',
-//           alignItems: 'center'
-//         }}>
-//           {showLiveFeed ? (
-//             <Image 
-//               source={{ uri: `${FLASK_URL}/video_feed?time=${new Date().getTime()}` }} 
-//               style={{ width: '100%', height: '100%' }}
-//               resizeMode="contain"
-//             />
-//           ) : (
-//             <Text style={{ color: '#fff' }}>Camera Preview Inactive</Text>
-//           )}
-//         </View>
-
-//         <TouchableOpacity
-//           style={[styles.button, { backgroundColor: showLiveFeed ? '#ef4444' : THEME.green }]}
-//           onPress={() => setShowLiveFeed(!showLiveFeed)}
-//         >
-//           <Text style={styles.buttonText}>
-//             {showLiveFeed ? "Stop Detection" : "Primary Classification"}
-//           </Text>
-//         </TouchableOpacity>
-
-//         <TouchableOpacity
-//           style={[styles.button, { backgroundColor: THEME.blue, marginTop: 15 }]}
-//           onPress={() => Alert.alert("Coming Soon", "Final model integration in progress.")}
-//         >
-//           <Text style={styles.buttonText}>Final Classification</Text>
-//         </TouchableOpacity>
-//       </View>
-//     </ScrollView>
-//   );
-// };
-
-
-
-// Change your import at the top of App.js to this:
 
 
 const ClassifyScreen = ({ isDark }) => {
@@ -1900,7 +1836,7 @@ const VolunteerDashboard = ({ userData, handleLogout }) => {
 
 // --- ORGANISER DASHBOARD ---
 
-const OrganiserDashboard = ({ userData, handleLogout }) => {
+const OrganiserDashboard = ({ userData, handleLogout, setChatParams}) => {
   const [activeTab, setActiveTab] = useState('Home');
   const [showAddEventForm, setShowAddEventForm] = useState(false);
   const [myEvents, setMyEvents] = useState([]);
@@ -1939,6 +1875,16 @@ const OrganiserDashboard = ({ userData, handleLogout }) => {
   };
 
   const renderContent = () => {
+
+    // Add this inside renderContent for OrganiserDashboard chat tab
+    if (activeTab === 'Messages') {
+  return <ChatListView userData={userData} onSelectChat={setChatParams} />;
+}
+
+
+
+
+
     if (activeTab === 'Events') {
       if (showAddEventForm) {
         return (
@@ -1997,17 +1943,346 @@ const OrganiserDashboard = ({ userData, handleLogout }) => {
 
 // --- CSR DASHBOARD ---
 
-const CSRDashboard = ({ userData, handleLogout }) => {
+const CSRDashboard = ({ userData, handleLogout, setChatParams }) => {
   const [activeTab, setActiveTab] = useState('Home');
+  const renderContent = () => {
+    // WhatsApp style list view for CSR to see Organisers
+    if (activeTab === 'Messages') {
+      return <ChatListView userData={userData} onSelectChat={setChatParams} />;
+    }
+
+    if (activeTab === 'Home') {
+      return (
+        <View style={styles.container}>
+          <Text style={styles.title}>CSR Dashboard</Text>
+          <Text style={styles.subtitle}>Welcome, {userData.name}</Text>
+          <TouchableOpacity onPress={handleLogout} style={[styles.button, styles.logoutButton]}>
+            <Text style={styles.buttonText}>Log Out</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return <View style={styles.container}><Text>Coming Soon</Text></View>;
+  };
+
   return (
     <View style={styles.dashboardLayout}>
-      <View style={styles.container}><Text>CSR Dashboard coming soon</Text>
-        <TouchableOpacity onPress={handleLogout} style={[styles.button, styles.logoutButton]}><Text style={styles.buttonText}>Log Out</Text></TouchableOpacity>
-      </View>
+      <View style={{ flex: 1 }}>{renderContent()}</View>
       <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
     </View>
   );
 };
+
+
+// --- Chat system----
+
+
+
+// const socket = io('http://192.168.0.106:5000'); // Ensure this matches BACKEND_URL
+
+// const ChatScreen = ({ userData, conversationId, recipientName, onBack }) => {
+//   const [messages, setMessages] = useState([]);
+//   const [inputText, setInputText] = useState('');
+
+//   useEffect(() => {
+//     // Join the unique room for this pair
+//     socket.emit('joinRoom', { conversationId });
+
+//     // Fetch existing chat history from backend (Optional: create a GET /api/messages/:id endpoint)
+    
+//     // Listen for new messages
+//     socket.on('newMessage', (message) => {
+//       setMessages((prev) => [...prev, message]);
+//     });
+
+//     return () => socket.off('newMessage');
+//   }, [conversationId]);
+
+//   const sendMessage = () => {
+//     if (inputText.trim()) {
+//       const messageData = {
+//         conversationId,
+//         senderId: userData.firebaseUid,
+//         senderName: userData.name,
+//         text: inputText
+//       };
+//       socket.emit('sendMessage', messageData);
+//       setInputText('');
+//     }
+//   };
+
+//   return (
+//     <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+//       <View style={{ padding: 20, backgroundColor: THEME.green, paddingTop: 50, flexDirection: 'row', alignItems: 'center' }}>
+//         <TouchableOpacity onPress={onBack}><Text style={{ color: '#fff', marginRight: 15 }}>⬅️</Text></TouchableOpacity>
+//         <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Chat with {recipientName}</Text>
+//       </View>
+
+//       <ScrollView style={{ flex: 1, padding: 15 }}>
+//         {messages.map((msg, index) => (
+//           <View key={index} style={{
+//             alignSelf: msg.senderId === userData.firebaseUid ? 'flex-end' : 'flex-start',
+//             backgroundColor: msg.senderId === userData.firebaseUid ? THEME.green : '#fff',
+//             padding: 10, borderRadius: 10, marginBottom: 10, maxWidth: '80%'
+//           }}>
+//             <Text style={{ color: msg.senderId === userData.firebaseUid ? '#fff' : '#000' }}>{msg.text}</Text>
+//             <Text style={{ fontSize: 10, color: '#888', textAlign: 'right' }}>{msg.senderName}</Text>
+//           </View>
+//         ))}
+//       </ScrollView>
+
+//       <View style={{ flexDirection: 'row', padding: 10, backgroundColor: '#fff' }}>
+//         <TextInput 
+//           style={{ flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 20, paddingHorizontal: 15, height: 40 }}
+//           value={inputText}
+//           onChangeText={setInputText}
+//           placeholder="Type a message..."
+//         />
+//         <TouchableOpacity onPress={sendMessage} style={{ marginLeft: 10, justifyContent: 'center' }}>
+//           <Text style={{ color: THEME.blue, fontWeight: 'bold' }}>SEND</Text>
+//         </TouchableOpacity>
+//       </View>
+//     </View>
+//   );
+// };
+
+const ChatListView = ({ userData, onSelectChat }) => {
+  const [partners, setPartners] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPartners = async () => {
+      
+      const targetRole = userData.role === 'organiser' ? 'csr' : 'organiser';
+      try {
+        const res = await axios.get(`${BACKEND_URL}/api/users/list-by-role/${targetRole}`);
+        setPartners(res.data);
+      } catch (e) {
+        console.error("Error loading chat list");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPartners();
+  }, [userData.role]);
+
+  if (loading) return <ActivityIndicator style={{ marginTop: 50 }} />;
+
+  return (
+    <ScrollView style={{ flex: 1 }}>
+      <View style={styles.headerContainer}>
+        <Text style={styles.homeTitle}>Messages</Text>
+      </View>
+      {partners.map((partner) => {
+        // Apply requested naming: CSR-(Name) or ORG-(Name)
+        const displayName = partner.role === 'csr' 
+          ? `CSR-${partner.name}` 
+          : `ORG-${partner.name}`;
+
+        return (
+          <TouchableOpacity 
+            key={partner.firebaseUid} 
+            style={styles.profileCard}
+            onPress={() => onSelectChat({
+              id: [userData.firebaseUid, partner.firebaseUid].sort().join('_'), // Unique room ID
+              name: displayName
+            })}
+          >
+            <View style={{ backgroundColor: THEME.blue, width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
+              <Text style={{ color: '#fff', fontSize: 18 }}>{partner.name.charAt(0)}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.name}>{displayName}</Text>
+              <Text style={{ color: '#888', fontSize: 12 }}>Tap to start conversation</Text>
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+};
+
+
+// --- PLACE THIS ABOVE AppLogic ---
+
+// const ChatScreen = ({ userData, conversationId, recipientName, onBack }) => {
+//   const [messages, setMessages] = useState([]);
+//   const [inputText, setInputText] = useState('');
+//   const [loading, setLoading] = useState(true);
+
+//   useEffect(() => {
+
+//     const loadHistory = async () => {
+//       try {
+//         const res = await axios.get(`${BACKEND_URL}/api/messages/${conversationId}`);
+//         setMessages(res.data);
+//       } catch (e) {
+//         console.error("Failed to load history");
+//       } finally {
+//         setLoading(false);
+//       }
+//     };
+
+//     loadHistory();
+
+//     socket.emit('joinRoom', { conversationId });
+//     socket.on('newMessage', (message) => {
+//       setMessages((prev) => [...prev, message]);
+//     });
+//     return () => socket.off('newMessage');
+//   }, [conversationId]);
+
+//   const sendMessage = () => {
+//     if (inputText.trim()) {
+//       socket.emit('sendMessage', {
+//         conversationId,
+//         senderId: userData.firebaseUid,
+//         senderName: userData.name,
+//         text: inputText
+//       });
+//       setInputText('');
+//     }
+//   };
+//     return (
+//     <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+//       {/* Header */}
+//       <View style={{ padding: 20, backgroundColor: THEME.green, paddingTop: 50, flexDirection: 'row', alignItems: 'center' }}>
+//         <TouchableOpacity onPress={onBack}><Text style={{ color: '#fff', marginRight: 15 }}>⬅️</Text></TouchableOpacity>
+//         <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Chat with {recipientName}</Text>
+//       </View>
+
+//       {/* Message List */}
+//       {loading ? (
+//         <ActivityIndicator size="large" color={THEME.green} style={{ flex: 1 }} />
+//       ) : (
+//         <ScrollView 
+//           style={{ flex: 1, padding: 15 }}
+//           ref={ref => { this.scrollView = ref }}
+//           onContentSizeChange={() => this.scrollView.scrollToEnd({ animated: true })}
+//         >
+//           {messages.map((msg, index) => (
+//             <View key={index} style={{
+//               alignSelf: msg.senderId === userData.firebaseUid ? 'flex-end' : 'flex-start',
+//               backgroundColor: msg.senderId === userData.firebaseUid ? THEME.green : '#fff',
+//               padding: 12, borderRadius: 15, marginBottom: 10, maxWidth: '85%',
+//               elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 2
+//             }}>
+//               <Text style={{ color: msg.senderId === userData.firebaseUid ? '#fff' : '#333', fontSize: 15 }}>
+//                 {msg.text}
+//               </Text>
+//               <Text style={{ 
+//                 fontSize: 9, 
+//                 color: msg.senderId === userData.firebaseUid ? '#e5e7eb' : '#9ca3af', 
+//                 textAlign: 'right', marginTop: 4 
+//               }}>
+//                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+//               </Text>
+//             </View>
+//           ))}
+//         </ScrollView>
+//       )}
+    
+//       <View style={{ flexDirection: 'row', padding: 10, backgroundColor: '#fff' }}>
+//         <TextInput 
+//           style={{ flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 20, paddingHorizontal: 15, height: 40 }}
+//           value={inputText}
+//           onChangeText={setInputText}
+//           placeholder="Type a message..."
+//         />
+//         <TouchableOpacity onPress={sendMessage} style={{ marginLeft: 10, justifyContent: 'center' }}>
+//           <Text style={{ color: THEME.blue, fontWeight: 'bold' }}>SEND</Text>
+//         </TouchableOpacity>
+//       </View>
+//     </View>
+//   );
+// };
+
+const ChatScreen = ({ userData, conversationId, recipientName, onBack }) => {
+  const [messages, setMessages] = useState([]);
+  const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(true);
+  
+  // Use the newly imported useRef
+  const scrollViewRef = useRef(null); 
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const res = await axios.get(`${BACKEND_URL}/api/messages/${conversationId}`);
+        setMessages(res.data);
+      } catch (e) {
+        console.log("History route not found on server yet.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadHistory();
+
+    socket.emit('joinRoom', { conversationId });
+    socket.on('newMessage', (message) => {
+      setMessages((prev) => [...prev, message]);
+    });
+
+    return () => socket.off('newMessage');
+  }, [conversationId]);
+
+  const sendMessage = () => {
+    if (inputText.trim()) {
+      socket.emit('sendMessage', {
+        conversationId,
+        senderId: userData.firebaseUid,
+        senderName: userData.name,
+        text: inputText
+      });
+      setInputText('');
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+      <View style={{ padding: 20, backgroundColor: THEME.green, paddingTop: 50, flexDirection: 'row', alignItems: 'center' }}>
+        <TouchableOpacity onPress={onBack}><Text style={{ color: '#fff', marginRight: 15, fontSize: 20 }}>⬅️</Text></TouchableOpacity>
+        <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Chat with {recipientName}</Text>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator size="large" color={THEME.green} style={{ flex: 1 }} />
+      ) : (
+        <ScrollView 
+          ref={scrollViewRef}
+          style={{ flex: 1, padding: 15 }}
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        >
+          {messages.map((msg, index) => (
+            <View key={index} style={{
+              alignSelf: msg.senderId === userData.firebaseUid ? 'flex-end' : 'flex-start',
+              backgroundColor: msg.senderId === userData.firebaseUid ? THEME.green : '#fff',
+              padding: 12, borderRadius: 15, marginBottom: 10, maxWidth: '85%'
+            }}>
+              <Text style={{ color: msg.senderId === userData.firebaseUid ? '#fff' : '#333' }}>{msg.text}</Text>
+            </View>
+          ))}
+        </ScrollView>
+      )}
+
+      <View style={{ flexDirection: 'row', padding: 10, backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#eee' }}>
+        <TextInput 
+          style={{ flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 20, paddingHorizontal: 15, height: 40 }}
+          value={inputText}
+          onChangeText={setInputText}
+          placeholder="Type a message..."
+        />
+        <TouchableOpacity onPress={sendMessage} style={{ marginLeft: 10, justifyContent: 'center', backgroundColor: THEME.blue, paddingHorizontal: 15, borderRadius: 20 }}>
+          <Text style={{ color: '#fff', fontWeight: 'bold' }}>SEND</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+
+
 
 // --- MAIN APP ---
 
@@ -2016,62 +2291,49 @@ export default function AppLogic() {
   const [selectedRole, setSelectedRole] = useState(null);
   const [userData, setUserData] = useState(null);
 
-  // useEffect(() => {
-  //   const unsubscribe = auth.onAuthStateChanged(async (user) => {
-  //     if (user && !userData) {
-  //       try {
-  //         const response = await axios.get(`${BACKEND_URL}/api/users/role/${user.uid}`);
-  //         setUserData({ ...response.data, firebaseUid: user.uid, email: user.email });
-  //         setScreen('dashboard');
-  //       } catch (err) { setScreen('welcome'); }
-  //     } else if (!user) {
-  //       setUserData(null);
-  //       if (!['register', 'login'].includes(screen)) setScreen('welcome');
-  //     }
-  //   });
-  //   return unsubscribe;
-  // }, [userData, screen]);
+  const [chatParams, setChatParams] = useState(null);
+  
 
-  // --- PLACE INSIDE AppLogic function ---
 useEffect(() => {
-  const unsubscribe = auth.onAuthStateChanged(async (user) => {
-    if (user && !userData) {
-      // Only fetch from MongoDB if we aren't in the middle of registering
-      if (screen !== 'register') {
-        try {
-          const response = await axios.get(`${BACKEND_URL}/api/users/role/${user.uid}`);
-          setUserData({ ...response.data, firebaseUid: user.uid, email: user.email });
-          setScreen('dashboard');
-        } catch (err) {
-          if (err.response && err.response.status === 404) {
-            console.log("User authenticated in Firebase but not found in MongoDB. Stay on welcome/register.");
-            setScreen('welcome');
-          } else {
-            console.error('Network or Server Error:', err);
+
+const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user && !userData) {
+        if (screen !== 'register') {
+          try {
+            const response = await axios.get(`${BACKEND_URL}/api/users/role/${user.uid}`);
+            setUserData({ ...response.data, firebaseUid: user.uid, email: user.email });
+            setScreen('dashboard');
+          } catch (err) {
+            console.log("Auth error or user not in MongoDB");
           }
         }
+      } else if (!user) {
+        setUserData(null);
+        if (screen === 'dashboard') setScreen('welcome');
       }
-    } else if (!user) {
-      setUserData(null);
-      if (!['register', 'login'].includes(screen)) setScreen('welcome');
-    }
-  });
-  return unsubscribe;
-}, [userData, screen]);
-
-  const handleLogout = async () => {
-    await signOut(auth);
-    setUserData(null);
-    setScreen('welcome');
-  };
+    });
+    return unsubscribe; // CORRECT: Returns the function
+  }, [userData, screen]);
 
   const renderScreen = () => {
+    if (chatParams && userData) {
+      return (
+        <ChatScreen 
+          userData={userData} 
+          conversationId={chatParams.id} 
+          recipientName={chatParams.name} 
+          onBack={() => setChatParams(null)} 
+        />
+      );
+    }
+
     if (screen === 'dashboard' && userData) {
       const role = userData.role?.toLowerCase();
-      if (role === 'volunteer') return <VolunteerDashboard userData={userData} handleLogout={handleLogout} />;
-      if (role === 'organiser') return <OrganiserDashboard userData={userData} handleLogout={handleLogout} />;
-      if (role === 'csr') return <CSRDashboard userData={userData} handleLogout={handleLogout} />;
+      if (role === 'volunteer') return <VolunteerDashboard userData={userData} handleLogout={() => signOut(auth)} />;
+      if (role === 'organiser') return <OrganiserDashboard userData={userData} handleLogout={() => signOut(auth)} setChatParams={setChatParams} />;
+      if (role === 'csr') return <CSRDashboard userData={userData} handleLogout={() => signOut(auth)} setChatParams={setChatParams} />;
     }
+
     if (screen === 'register') return <RegisterScreen role={selectedRole} setScreen={setScreen} setRole={setSelectedRole} setUserData={setUserData} />;
     if (screen === 'login') return <LoginScreen setScreen={setScreen} setUserData={setUserData} />;
     return <WelcomeScreen setRole={setSelectedRole} setIsRegistering={() => setScreen('register')} setIsLoggedIn={() => setScreen('login')} />;
