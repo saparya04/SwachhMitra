@@ -34,7 +34,7 @@ const firebaseConfig = {
 };
 
 const BACKEND_URL = 'http://192.168.0.106:5000'; // Ensure this matches your IPv4
-
+const BASE_URL = "http://192.168.0.106:5000/api";
 const app = initializeApp(firebaseConfig);
 const getPersistenceMethod = () => Platform.OS === 'web' ? browserLocalPersistence : getReactNativePersistence(AsyncStorage);
 const auth = initializeAuth(app, { persistence: getPersistenceMethod() });
@@ -389,13 +389,81 @@ const VolunteerDashboard = ({ userData, handleLogout }) => {
     finally { setLoading(false); }
   };
 
-  const handleRegisterEvent = async (eventId) => {
-    try {
-      await axios.post(`${BACKEND_URL}/api/events/join`, { eventId, firebaseUid: userData.firebaseUid });
-      Alert.alert("Success", "Registered for event!");
-      fetchEvents();
-    } catch (e) { Alert.alert("Error", "Could not register"); }
-  };
+
+const handleRegisterEvent = async (eventId) => {
+  // 1. Save the old state in case we need to roll back
+  const originalEvents = [...events];
+
+  // 2. Update UI Immediately (Optimistic Update)
+  setEvents(prevEvents => prevEvents.map(ev => {
+    if (ev._id === eventId) {
+      const updatedParticipants = [...(ev.participants || []), userData.firebaseUid];
+      return { ...ev, participants: updatedParticipants };
+    }
+    return ev;
+  }));
+
+  try {
+    // 3. Fire the API call in the background
+    await axios.post(`${BASE_URL}/events/join`, {
+      eventId,
+      firebaseUid: userData.firebaseUid,
+    });
+    // No need to alert success every time, the UI already changed!
+  } catch (error) {
+    // 4. If it fails, roll back to the old UI state
+    setEvents(originalEvents);
+    console.error("Phone Sync Error:", error);
+    Alert.alert("Connection Error", "Check if your laptop server is running.");
+  }
+};
+
+
+
+
+
+
+
+
+
+//   const handleLeaveEvent = async (eventId) => {
+//   try {
+//     await axios.post(`${BACKEND_URL}/api/events/leave`, { 
+//       eventId, 
+//       firebaseUid: userData.firebaseUid 
+//     });
+//     Alert.alert("Unregistered", "You have left the event.");
+//     fetchEvents();
+//   } catch (e) {
+//     Alert.alert("Error", "Could not unregister");
+//   }
+// };
+const handleLeaveEvent = async (eventId) => {
+  try {
+    await axios.post(`${API_URL}/events/leave`, {
+      eventId,
+      firebaseUid: userData.firebaseUid,
+    });
+
+    // INSTANT UI UPDATE:
+    // Filter out the user from the local state
+    setEvents(prevEvents => prevEvents.map(ev => {
+      if (ev._id === eventId) {
+        return { 
+          ...ev, 
+          participants: ev.participants.filter(id => id !== userData.firebaseUid) 
+        };
+      }
+      return ev;
+    }));
+
+    Alert.alert("Success", "Unregistered from event");
+  } catch (error) {
+    Alert.alert("Error", "Could not leave event");
+  }
+};
+
+
 
   const renderContent = () => {
     if (activeTab === 'Classify') {
@@ -408,22 +476,81 @@ const VolunteerDashboard = ({ userData, handleLogout }) => {
           <View style={styles.headerContainer}>
             <Text style={styles.homeTitle}>Cleanup Events</Text>
           </View>
-          {events.map(ev => (
-            <View key={ev._id} style={styles.eventCard}>
-              <Image source={{ uri: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80' }} style={styles.eventImage} />
-              <View style={styles.eventContent}>
-                <Text style={styles.eventTitle}>{ev.name}</Text>
-                <Text style={styles.detailText}>📍 {ev.location}</Text>
-                <Text style={styles.detailText}>📅 {new Date(ev.date).toDateString()} | ⏰ {ev.time}</Text>
-                <TouchableOpacity style={[styles.button, { backgroundColor: THEME.green, marginTop: 10 }]} onPress={() => handleRegisterEvent(ev._id)}>
-                <Text style={styles.buttonText}>Register Event</Text>
-                </TouchableOpacity>
-              </View>
+
+
+          
+
+  {/* QUEUE*/}
+  
+{events.map(ev => {
+  // 1. Find the user's position in the participants array
+  const userIndex = ev.participants ? ev.participants.indexOf(userData.firebaseUid) : -1;
+  const isEnrolled = userIndex !== -1;
+  
+  // 2. Determine if they are officially 'Registered' or 'In Queue'
+  // Example: If volunteersRequired is 10, indexes 0-9 are Registered. 10+ is Waiting.
+  const isRegistered = isEnrolled && userIndex < ev.volunteersRequired;
+  const isWaiting = isEnrolled && userIndex >= ev.volunteersRequired;
+
+  return (
+    <View key={ev._id} style={styles.eventCard}>
+      <Image 
+        source={{ uri: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80' }} 
+        style={styles.eventImage} 
+      />
+      <View style={styles.eventContent}>
+        <View style={styles.eventTitleRow}>
+          <Text style={styles.eventTitle}>{ev.name}</Text>
+          
+          {/* Status Tags */}
+          {isRegistered && (
+            <View style={[styles.statusBadge, { backgroundColor: THEME.blue }]}>
+              <Text style={styles.statusText}>Joined</Text>
             </View>
-          ))}
+          )}
+          {isWaiting && (
+            <View style={[styles.statusBadge, { backgroundColor: '#f59e0b' }]}>
+              <Text style={styles.statusText}>In Queue #{userIndex - ev.volunteersRequired + 1}</Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={styles.detailText}>📍 {ev.location}</Text>
+        <Text style={styles.detailText}>📅 {new Date(ev.date).toDateString()} | ⏰ {ev.time}</Text>
+        
+        {/* Capacity Indicator */}
+        <Text style={{ fontSize: 12, color: '#666', marginTop: 5 }}>
+          Spots: {Math.min(ev.participants.length, ev.volunteersRequired)} / {ev.volunteersRequired} 
+          {ev.participants.length > ev.volunteersRequired && ` (+${ev.participants.length - ev.volunteersRequired} waiting)`}
+        </Text>
+
+        {/* TOGGLE BUTTON */}
+        <TouchableOpacity 
+          style={[
+            styles.button, 
+            { backgroundColor: isEnrolled ? '#ef4444' : THEME.green, marginTop: 15 }
+          ]} 
+          onPress={() => isEnrolled ? handleLeaveEvent(ev._id) : handleRegisterEvent(ev._id)}
+        >
+          <Text style={styles.buttonText}>
+            {isEnrolled ? "Leave Event" : "Register Event"}
+          </Text>
+        </TouchableOpacity>
+
+        {isWaiting && (
+          <Text style={{ fontSize: 11, color: '#b45309', marginTop: 8, fontStyle: 'italic', textAlign: 'center' }}>
+            If someone leaves, you will automatically move up in the list!
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+})}
+
         </ScrollView>
       );
     }
+
 
     if (activeTab === 'Home') {
       return (
