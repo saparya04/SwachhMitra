@@ -26,7 +26,7 @@ COLLECTION = "events"        # Must match your collection name
 
 # Template path – change to relative path when deploying
 # For local testing, keep absolute path
-TEMPLATE_PATH = r"C:\Users\Vansh\OneDrive\Desktop\dep\wastecleanup.png"
+TEMPLATE_PATH = r"D:\4th Year Mini project\Vansh Swachmitra\SwachhMitra\backend\scripts\wastecleanup.png"
 
 # If deploying to server → use:
 # TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "templates", "wastecleanup.png")
@@ -41,12 +41,19 @@ FONT_INVITE_SIZE   = 24
 FONT_DETAILS_SIZE  = 32
 FONT_SUB_SIZE      = 26
 
-Y_TITLE       = 780
-Y_INVITE      = 680
-Y_DATE        = 480
-Y_TIME        = 420
-Y_LOCATION    = 360
-Y_VOLUNTEERS  = 280
+# Y_TITLE       = 1250
+# Y_INVITE      = 680
+# Y_DATE        = 480
+# Y_TIME        = 420
+# Y_LOCATION    = 360
+# Y_VOLUNTEERS  = 280
+
+Y_TITLE       = 1100     # pixels from bottom – tune these!
+Y_INVITE      = 900
+Y_DATE        = 980
+Y_TIME        = 700
+Y_LOCATION    = 600
+Y_VOLUNTEERS  = 500
 
 COLOR_TITLE      = (13,  64, 140)
 COLOR_TEXT       = (26,  26,  26)
@@ -165,7 +172,7 @@ def generate_platform_caption(image_base64, platform):
 
     try:
         response = client.chat.completions.create(
-            model="llama-3.2-11b-vision-instruct",
+            model="llama-3.2-11b-vision-preview",
             messages=[
                 {"role": "user", "content": [
                     {"type": "text", "text": prompts.get(platform, prompts["Instagram"])},
