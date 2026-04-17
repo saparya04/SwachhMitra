@@ -485,7 +485,24 @@ def main():
         except Exception as e:
             print(f"CAPTIONS_FAILED:{e}")
 
-    print(f"POSTER_PATH:{os.path.abspath(poster_path)}")
+    # print(f"POSTER_PATH:{os.path.abspath(poster_path)}")
+    
+    # ✅ Prepare PNG path safely
+    png_path = None
+    if 'caption_image' in locals() and caption_image and os.path.exists(caption_image):
+        png_path = os.path.abspath(caption_image)
+
+    # ✅ Create output object
+    output = {
+        "html": os.path.abspath(poster_path),
+        "png": png_path
+    }
+
+    # ✅ Send both paths
+    print("POSTER_OUTPUT:" + json.dumps(output))
+    
+
+    
 
 
 if __name__ == "__main__":
